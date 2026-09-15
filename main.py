@@ -34,25 +34,30 @@ embeddings = OpenAIEmbeddings(
     model="text-embedding-3-large",
 )
 
-loader = PyPDFLoader("./files/sample1.pdf")
-result = loader.load()
-# print(result[0].page_content)
+# ### Load PDF
+# loader = PyPDFLoader("./files/sample1.pdf")
+# result = loader.load()
+
+# ## Text Splitter
+# text_splitter = RecursiveCharacterTextSplitter(
+#     chunk_size=500, 
+#     chunk_overlap=150
+# )
+# splitter = text_splitter.split_documents(result)
 
 
-text_splitter = RecursiveCharacterTextSplitter(
-    chunk_size=500, 
-    chunk_overlap=150
+# vector_store = Chroma.from_documents(
+#     documents=splitter,
+#     embedding=embeddings,
+#     persist_directory="./chroma_langchain_db",  # Where to save data locally, remove if not necessary
+# )
+
+
+vector_store = Chroma(
+    embedding_function=embeddings,
+    persist_directory="./chroma_langchain_db",
 )
 
-splitter = text_splitter.split_documents(result)
-# print(splitter)
-
-
-vector_store = Chroma.from_documents(
-    documents=splitter,
-    embedding=embeddings,
-    persist_directory="./chroma_langchain_db",  # Where to save data locally, remove if not necessary
-)
 
 prompt = ChatPromptTemplate.from_template(
     """
@@ -69,7 +74,7 @@ while True:
     if query.lower() == 'exit':
         break
 
-    search_result = vector_store.similarity_search(query)
+    search_result = vector_store.similarity_search(query, k=3)
 
     content = ''
 
