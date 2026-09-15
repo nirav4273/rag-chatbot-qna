@@ -1,22 +1,22 @@
 # RAG Chatbot QnA
 
-A command-line RAG (Retrieval-Augmented Generation) chatbot built with LangChain and LangGraph. It loads a PDF, chunks and embeds it into a local Chroma vector store, and answers questions strictly from the retrieved document context.
+A Streamlit RAG (Retrieval-Augmented Generation) chatbot built with LangChain. Upload one or more PDFs, and it chunks and embeds them into an in-memory vector store, then answers questions strictly from the retrieved document context.
 
 ## Features
 
-- PDF ingestion via `PyPDFLoader`
+- Multi-file PDF upload via a Streamlit UI (`PyPDFDirectoryLoader`)
 - Text chunking with `RecursiveCharacterTextSplitter`
-- Vector storage and similarity search using Chroma (persisted locally)
+- In-memory vector storage and similarity search (`InMemoryVectorStore`)
 - OpenAI embeddings (`text-embedding-3-large`)
-- Conversational agent (LangGraph `create_agent`) with in-memory checkpointing for session state
-- Context-grounded answers — responds with "No data found" when the answer isn't in the document
+- Query decomposition: each question is first split by the LLM into self-contained sub-questions, each retrieved separately, then answered in one final grounded LLM call
+- Source attribution — answers cite the originating file and page, e.g. `[Source: report.pdf, page 3]`
+- Context-grounded answers — responds with "No data found in the provided document." when the answer isn't in the uploaded documents
 
 ## Tech Stack
 
 - Python 3.13+
 - [LangChain](https://python.langchain.com/) / LangChain Community / LangChain Core
-- [LangGraph](https://langchain-ai.github.io/langgraph/) for the agent runtime
-- [Chroma](https://www.trychroma.com/) as the vector store
+- [Streamlit](https://streamlit.io/) for the chat UI
 - OpenAI (chat + embeddings) via `langchain-openai`
 - [uv](https://docs.astral.sh/uv/) for dependency management
 
@@ -24,10 +24,10 @@ A command-line RAG (Retrieval-Augmented Generation) chatbot built with LangChain
 
 ```
 .
-├── main.py       # Entry point: loads PDF, builds vector store, runs the Q&A loop
+├── main.py       # Streamlit app: PDF upload, vector store, query splitting, retrieval, and answering
 ├── llm.py        # LLM provider initialization (OpenAI / Groq)
-├── files/        # Source PDFs used for retrieval (e.g. sample1.pdf)
-├── chroma_langchain_db/  # Local persisted Chroma vector store
+├── files/        # Sample PDFs (e.g. sample1.pdf)
+├── user_docs/    # PDFs uploaded via the Streamlit UI at runtime
 └── pyproject.toml
 ```
 
@@ -48,28 +48,26 @@ A command-line RAG (Retrieval-Augmented Generation) chatbot built with LangChain
    ```
    > Note: `OPENAI_API_KEY` is required for embeddings regardless of the selected `MODEL_PROVIDER`.
 
-3. Place the PDF you want to query in the `files/` directory (default: `files/sample1.pdf`).
-
 ## Usage
 
-Run the chatbot:
+Run the Streamlit app:
 
 ```bash
-uv run main.py
+uv run streamlit run main.py
 ```
 
-You'll be prompted to ask questions about the loaded PDF:
+Then, in the browser tab that opens:
 
-```
-Ask question from PDF: What is this document about?
-ANS --->  ...
-```
+1. Upload one or more PDF files.
+2. Once processing finishes, ask questions in the chat input.
 
-Type `exit` to quit.
+The vector store and chat history live only in the Streamlit session — restarting the app or re-uploading clears them.
 
 ## How It Works
 
-1. The PDF is loaded and split into overlapping chunks (500 chars, 150 overlap).
-2. Chunks are embedded and stored in a persistent Chroma vector store.
-3. On each question, the most relevant chunks are retrieved via similarity search.
-4. The retrieved context and question are rendered into a prompt and passed to the LangGraph agent, which answers using only that context.
+1. Uploaded PDFs are saved to `user_docs/`, loaded, and split into overlapping chunks (1000 chars, 300 overlap).
+2. Chunks are embedded and stored in an in-memory vector store for the session.
+3. On each question:
+   - The LLM breaks the question into a list of self-contained, detailed sub-questions.
+   - Each sub-question is run through similarity search against the vector store, and the results are merged (deduplicated).
+   - The combined, source-tagged context and the original question are passed to a final LLM call, which answers using only that context and cites sources.
