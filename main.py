@@ -119,8 +119,8 @@ Rules:
 st.subheader("QnA with upload")
 
 if not st.session_state.document_uploaded:
-    
-    uploaded = st.file_uploader("Select or Drag files", type=['pdf'], accept_multiple_files=True)
+
+    uploaded = st.file_uploader("Select or Drag files", type=['pdf'], accept_multiple_files=True, max_upload_size=1)
 
     if uploaded:
         with st.spinner("Processing"):
