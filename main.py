@@ -14,6 +14,8 @@ from langchain_core.runnables import RunnableSequence
 from langgraph.checkpoint.memory import InMemorySaver
 from langchain.agents import create_agent
 from llm import init_llm
+from langchain.tools import tool
+
 load_dotenv()
 
 
@@ -24,11 +26,6 @@ assert model is not None, "init_llm() returned None"
 # memory = InMemorySaver()
 memory = InMemorySaver()
 
-agent = create_agent(
-    model=model,
-    checkpointer=memory,
-    system_prompt="You are RAG assistant who provide ans from the provided document context ONLY."
-)
 
 embeddings = OpenAIEmbeddings(
     model="text-embedding-3-large",
@@ -67,38 +64,53 @@ prompt = ChatPromptTemplate.from_template(
     Question: {question}
     """
 )
-# chain = RunnableSequence(prompt, model)
 
-while True:
-    query = input("Ask question from PDF: ")
-    if query.lower() == 'exit':
-        break
-
+@tool
+def retrival_tool(query: str):
+    """
+        This tool help you to retrive the data of the provided PDF document.
+    """
+    print("Tool call>>", query)
     search_result = vector_store.similarity_search(query, k=3)
-
+    
     content = ''
 
     for record in search_result:
         content += record.page_content
 
-    
-    rendered_prompt = prompt.format(content=content, question=query)
+    return content
 
-    result = agent.invoke({
-        "messages": [
-            {
-                'role': 'user',
-                'content': rendered_prompt
-            }
-        ]
-    }, {
-        'configurable': {
-            'thread_id': 'test124'
+
+
+agent = create_agent(
+    model=model,
+    # checkpointer=memory,
+    tools=[retrival_tool],
+    system_prompt="You are RAG assistant who provide ans from the provided document context ONLY and use the retrival_tool for the fetching data and when have multiple questions return answers in better formatting."
+)
+
+
+# rendered_prompt = prompt.format(content=content, question=query)
+
+result = agent.invoke({
+    "messages": [
+        {
+            'role': 'user',
+            'content': """
+                What are the findings or conclusions presented?
+                Are there any important statistics or data mentioned?
+            """
         }
-    })
-    messages = result['messages']
+    ]
+})
+messages = result['messages']
 
-    print("ANS ---> ", messages[-1].content)
+print("ANS ---> ", messages[-1].content)
+
+# chain = RunnableSequence(prompt, model)
+
+
+
 
 
 
