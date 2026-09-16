@@ -12,10 +12,12 @@ from langchain.tools import tool
 from langchain_core.prompts import ChatPromptTemplate
 import streamlit as st
 import os
+import shutil
 
 
 load_dotenv()
 
+USER_DOCS_DIR = "./user_docs"
 
 if 'document_uploaded' not in st.session_state:
     st.session_state.document_uploaded = False
@@ -23,6 +25,13 @@ if 'agent' not in st.session_state:
     st.session_state.agent = None
 if 'messages' not in st.session_state:
     st.session_state.messages = []
+if 'uploaded_files' not in st.session_state:
+    st.session_state.uploaded_files = []
+if 'session_initialized' not in st.session_state:
+    # Fresh visit to the app: wipe any leftover files from previous sessions.
+    if os.path.isdir(USER_DOCS_DIR):
+        shutil.rmtree(USER_DOCS_DIR)
+    st.session_state.session_initialized = True
 
 
 def process_doc(doc_path: str, files):    
@@ -124,18 +133,22 @@ if not st.session_state.document_uploaded:
 
     if uploaded:
         with st.spinner("Processing"):
-            os.makedirs("./user_docs", exist_ok=True)
-            path = "./user_docs/"
+            os.makedirs(USER_DOCS_DIR, exist_ok=True)
+            path = USER_DOCS_DIR + "/"
             files = []
             for file in uploaded:
                 with open(path + file.name, "wb") as f:
                     f.write(file.getvalue())
                 files.append(file.name)
-            
+
+            st.session_state.uploaded_files = files
             process_doc(path, files)
             st.rerun()
 
 if st.session_state.document_uploaded and st.session_state.agent:
+    if st.session_state.uploaded_files:
+        st.caption(f"📄 Using: {', '.join(st.session_state.uploaded_files)}")
+
     for message in st.session_state.messages:
         st.chat_message(message['role']).markdown(message['content'])
 
